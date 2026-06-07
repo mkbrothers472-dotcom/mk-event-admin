@@ -2,7 +2,7 @@ import { AppProvider, useApp } from './store';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
-import { DBStatus, LoadingScreen } from './components/DBStatus';
+import { DBStatus } from './components/DBStatus';
 import { Dashboard } from './pages/Dashboard';
 import { Events } from './pages/Events';
 import { CalendarPage } from './pages/Calendar';
@@ -15,7 +15,10 @@ import { Reminders } from './pages/Reminders';
 import { Reports } from './pages/Reports';
 import { Search } from './pages/Search';
 import { Settings } from './pages/Settings';
+import { Login, getAuthCookie } from './pages/Login';
 import { cn } from './utils';
+import { useState } from 'react';
+import { ToastContainer } from './components/Toast';
 
 function PageContent() {
   const { activePage } = useApp();
@@ -39,8 +42,8 @@ function PageContent() {
 function Layout() {
   const { sidebarOpen, toggleSidebar, loading, dbConnected } = useApp();
 
-  // Show loading screen only on first load when trying to connect
-  if (loading && !dbConnected) return <LoadingScreen />;
+  // Never block on loading — show the app immediately with mock data
+  // Backend connection happens in background
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
@@ -74,8 +77,13 @@ function Layout() {
 }
 
 export default function App() {
+  const [authed, setAuthed] = useState(() => getAuthCookie());
+
+  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
+
   return (
     <AppProvider>
+      <ToastContainer />
       <Layout />
     </AppProvider>
   );

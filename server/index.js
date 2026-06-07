@@ -13,7 +13,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:4173',
   'http://127.0.0.1:5173',
-  // Vercel deployment — update after deploy
+  'https://superlative-syrniki-cfe37c.netlify.app',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
@@ -21,7 +21,11 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.netlify.app')
+    ) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
@@ -44,6 +48,7 @@ app.use('/api/event-inventory', require('./routes/eventInventory'));
 app.use('/api/reminders',       require('./routes/reminders'));
 app.use('/api/photos',          require('./routes/photos'));
 app.use('/api/expenses',        require('./routes/expenses'));
+app.use('/api/backup',          require('./routes/backup'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -57,15 +62,20 @@ app.get('/api/health', (req, res) => {
 // Connect to MongoDB then start server
 const PORT = process.env.PORT || 5000;
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('✅ MongoDB connected:', process.env.MONGO_URI);
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log(`📊 API docs: http://localhost:${PORT}/api/health`);
+// Start server immediately — don't block on DB connection
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+
+// Connect to MongoDB
+if (process.env.MONGO_URI) {
+  mongoose.connect(process.env.MONGO_URI)
+    .then(() => {
+      console.log('✅ MongoDB connected');
+    })
+    .catch(err => {
+      console.error('❌ MongoDB connection failed:', err.message);
     });
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection failed:', err.message);
-    process.exit(1);
-  });
+} else {
+  console.warn('⚠️  MONGO_URI not set — running without database');
+}

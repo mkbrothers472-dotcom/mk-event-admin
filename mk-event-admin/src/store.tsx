@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Client, Event, Payment, InventoryItem, EventInventory, Reminder } from './types';
 import { clientsApi, eventsApi, paymentsApi, inventoryApi, eventInventoryApi, remindersApi } from './api';
+import { toast } from './components/Toast';
+import { prefetchAllPhotos } from './photoCache';
 
 // ── Fallback mock data (used when backend is offline) ──────────────────────
 import * as mockData from './data';
@@ -16,6 +18,7 @@ interface AppState {
   darkMode: boolean;
   sidebarOpen: boolean;
   activePage: string;
+  selectedEventId: string | null;
   loading: boolean;
   dbConnected: boolean;
   error: string | null;
@@ -34,6 +37,7 @@ interface AppActions {
   toggleDarkMode: () => void;
   toggleSidebar: () => void;
   setActivePage: (page: string) => void;
+  navigateToEvent: (eventId: string) => void;
   refreshAll: () => Promise<void>;
 }
 
@@ -65,16 +69,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [inventory, setInventory]           = useState<InventoryItem[]>(mockData.inventory);
   const [eventInventory, setEventInventory] = useState<EventInventory[]>(mockData.eventInventory);
   const [reminders, setReminders]           = useState<Reminder[]>(mockData.reminders);
-  const [darkMode, setDarkMode]             = useState(false);
+  const [darkMode, setDarkMode]             = useState(() => {
+    try {
+      const saved = localStorage.getItem('mk-dark-mode');
+      if (saved !== null) return saved === 'true';
+      // Default: respect OS preference
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch { return false; }
+  });
   const [sidebarOpen, setSidebarOpen]       = useState(true);
   const [activePage, setActivePage]         = useState('dashboard');
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [loading, setLoading]               = useState(false);
   const [dbConnected, setDbConnected]       = useState(false);
   const [error, setError]                   = useState<string | null>(null);
 
-  // Apply dark class to <html>
+  // Apply dark class to <html> and persist preference
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
+    try { localStorage.setItem('mk-dark-mode', String(darkMode)); } catch {}
   }, [darkMode]);
 
   // Load all data from MongoDB on mount
@@ -97,10 +110,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setEventInventory(normalize(ei));
       setReminders(normalize(rem));
       setDbConnected(true);
+      // Prefetch all event photos in background after data loads
+      const eventIds = normalize(e).map((ev: any) => ev._id || ev.id).filter(Boolean);
+      prefetchAllPhotos(eventIds).catch(() => {});
     } catch (err: any) {
       console.warn('Backend offline — using mock data:', err.message);
       setDbConnected(false);
       setError('Using offline mock data. Start the backend server to connect MongoDB.');
+      toast.warning('Running in offline mode — using mock data');
     } finally {
       setLoading(false);
     }
@@ -113,9 +130,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (dbConnected) {
       const created = normalize(await eventsApi.create({ ...data, client_id: data.client_id || data.client?.id }));
       setEvents(p => [created, ...p]);
+      toast.success('Event created successfully!');
+      return created;
     } else {
       const ev = { ...data, id: Date.now().toString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
       setEvents(p => [ev, ...p]);
+      toast.success('Event created successfully!');
+      return ev;
     }
   }, [dbConnected]);
 
@@ -126,11 +147,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       setEvents(p => p.map(e => e.id === data.id ? { ...data, updated_at: new Date().toISOString() } : e));
     }
+    toast.success('Event updated successfully!');
   }, [dbConnected]);
 
   const deleteEvent = useCallback(async (id: string) => {
     if (dbConnected) await eventsApi.delete(id);
     setEvents(p => p.filter(e => e.id !== id));
+    toast.success('Event deleted.');
   }, [dbConnected]);
 
   // ── Client actions ─────────────────────────────────────────────────────
@@ -138,8 +161,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (dbConnected) {
       const created = normalize(await clientsApi.create(data));
       setClients(p => [created, ...p]);
+      toast.success('Client added successfully!');
+      return created;
     } else {
-      setClients(p => [{ ...data, id: Date.now().toString(), created_at: new Date().toISOString() }, ...p]);
+      const newClient = { ...data, id: Date.now().toString(), created_at: new Date().toISOString() };
+      setClients(p => [newClient, ...p]);
+      toast.success('Client added successfully!');
+      return newClient;
     }
   }, [dbConnected]);
 
@@ -148,12 +176,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (dbConnected) {
       const created = normalize(await paymentsApi.create({ ...data, event_id: data.event_id || data.event?.id }));
       setPayments(p => [created, ...p]);
-      // Refresh events to get updated balance
       const updatedEvents = normalize(await eventsApi.getAll());
       setEvents(updatedEvents);
     } else {
       setPayments(p => [{ ...data, id: Date.now().toString(), created_at: new Date().toISOString() }, ...p]);
     }
+    toast.success('Payment recorded successfully!');
   }, [dbConnected]);
 
   // ── Inventory actions ──────────────────────────────────────────────────
@@ -164,6 +192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       setInventory(p => [{ ...data, id: Date.now().toString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...p]);
     }
+    toast.success('Inventory item added!');
   }, [dbConnected]);
 
   const updateInventoryItem = useCallback(async (data: InventoryItem) => {
@@ -173,11 +202,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       setInventory(p => p.map(i => i.id === data.id ? data : i));
     }
+    toast.success('Inventory item updated!');
   }, [dbConnected]);
 
   const deleteInventoryItem = useCallback(async (id: string) => {
     if (dbConnected) await inventoryApi.delete(id);
     setInventory(p => p.filter(i => i.id !== id));
+    toast.success('Inventory item deleted.');
   }, [dbConnected]);
 
   // ── Event Inventory actions ────────────────────────────────────────────
@@ -188,19 +219,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       setEventInventory(p => p.map(i => i.id === data.id ? data : i));
     }
+    toast.info(`Pickup status updated to: ${data.pickup_status}`);
   }, [dbConnected]);
 
   const toggleDarkMode  = useCallback(() => setDarkMode(p => !p), []);
   const toggleSidebar   = useCallback(() => setSidebarOpen(p => !p), []);
+  const navigateToEvent = useCallback((eventId: string) => {
+    setSelectedEventId(eventId);
+    setActivePage('events');
+  }, []);
 
   return (
     <Ctx.Provider value={{
       clients, events, payments, inventory, eventInventory, reminders,
-      darkMode, sidebarOpen, activePage, loading, dbConnected, error,
+      darkMode, sidebarOpen, activePage, selectedEventId, loading, dbConnected, error,
       addEvent, updateEvent, deleteEvent,
       addClient, addPayment,
       addInventoryItem, updateInventoryItem, deleteInventoryItem, updateEventInventory,
-      toggleDarkMode, toggleSidebar, setActivePage, refreshAll,
+      toggleDarkMode, toggleSidebar, setActivePage, navigateToEvent, refreshAll,
     }}>
       {children}
     </Ctx.Provider>

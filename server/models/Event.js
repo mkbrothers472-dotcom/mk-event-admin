@@ -9,8 +9,8 @@ const eventSchema = new mongoose.Schema({
   },
   custom_event_name: { type: String },
   event_venue:       { type: String, required: true },
-  event_date:        { type: String, required: true },   // stored as YYYY-MM-DD
-  event_time:        { type: String, required: true },   // stored as HH:MM
+  event_date:        { type: String, required: true },
+  event_time:        { type: String, required: true },
   event_status: {
     type: String,
     enum: ['Upcoming','In Progress','Completed','Cancelled'],
@@ -30,9 +30,10 @@ const eventSchema = new mongoose.Schema({
     default: 'Pending',
   },
   notes: { type: String },
+  // Store first photo URL directly so cards load without extra API call
+  cover_photo_url: { type: String },
 }, { timestamps: true });
 
-// Auto-calculate remaining balance before save
 eventSchema.pre('save', function(next) {
   this.remaining_balance = this.total_price - this.advance_received;
   next();

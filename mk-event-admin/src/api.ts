@@ -1,17 +1,29 @@
 // Central API client — all calls go to the Express/MongoDB backend
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',  // bypass ngrok browser warning
+      },
+      signal: controller.signal,
+      ...options,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || 'Request failed');
+    }
+    return res.json();
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') throw new Error('Request timed out');
+    throw err;
   }
-  return res.json();
 }
 
 // ── Clients ────────────────────────────────────────────────────────────────

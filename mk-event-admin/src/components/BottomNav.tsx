@@ -65,7 +65,7 @@ export function BottomNav() {
 
       {/* Bottom bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 safe-area-pb">
-        <div className="flex items-center justify-around h-16 px-1">
+        <div className="flex items-center justify-around h-16 px-1 max-w-[430px] mx-auto">
           {mainNav.map(({ id, icon: Icon, label }) => {
             const active = activePage === id;
             const isBell = id === 'reminders';

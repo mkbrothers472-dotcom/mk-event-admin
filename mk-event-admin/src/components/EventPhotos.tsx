@@ -12,6 +12,7 @@ interface Photo {
   photo_type: 'reference' | 'completed';
   original_name?: string;
   createdAt?: string;
+  size?: number;
 }
 
 interface EventPhotosProps {
@@ -29,6 +30,14 @@ export function EventPhotos({ eventId, eventName }: EventPhotosProps) {
   const [dragOver, setDragOver]     = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Format file size
+  const formatSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
 
   // Load photos
   useEffect(() => {
@@ -209,7 +218,8 @@ export function EventPhotos({ eventId, eventName }: EventPhotosProps) {
             {current.map(photo => (
               <div
                 key={photo.id}
-                className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600"
+                className="relative group w-full aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600"
+                style={{ maxWidth: '200px' }}
               >
                 <img
                   src={photo.url}
@@ -244,6 +254,12 @@ export function EventPhotos({ eventId, eventName }: EventPhotosProps) {
                 }`}>
                   {photo.photo_type === 'completed' ? '✓ Done' : 'Ref'}
                 </div>
+                {/* Size badge */}
+                {photo.size && (
+                  <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/60 text-white rounded text-[10px] font-medium backdrop-blur-sm">
+                    {formatSize(photo.size)}
+                  </div>
+                )}
               </div>
             ))}
           </div>

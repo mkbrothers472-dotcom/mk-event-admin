@@ -1,13 +1,128 @@
 import { useApp } from '../store';
 import { Card } from '../components/ui';
 import { formatDate, formatTime, formatCurrency, statusColor, payColor, waLink } from '../utils';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, getDay } from 'date-fns';
-import { useState } from 'react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, getDay, differenceInDays, parseISO } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { photosApi } from '../api';
+import { Event } from '../types';
 import {
   Calendar, CheckCircle, Clock, CreditCard, Package, Sparkles,
   MapPin, Phone, MessageCircle, ArrowRight, AlertCircle,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Camera, TrendingUp,
 } from 'lucide-react';
+
+// ── Event type cover images ────────────────────────────────────────────────
+const EVENT_COVERS: Record<string, string> = {
+  'Baby Shower':         'https://images.unsplash.com/photo-1603796846097-bee99e4a601f?w=300&h=200&fit=crop&q=80',
+  'Birthday Decoration': 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=300&h=200&fit=crop&q=80',
+  'Welcome Baby':        'https://images.unsplash.com/photo-1558171813-0abbc76bea6c?w=300&h=200&fit=crop&q=80',
+  'Mandap Muhurat':      'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=300&h=200&fit=crop&q=80',
+  'Wedding Decoration':  'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=300&h=200&fit=crop&q=80',
+  'Shrimant Sanskar':    'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=300&h=200&fit=crop&q=80',
+  'Custom Event':        'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=300&h=200&fit=crop&q=80',
+};
+
+// ── Upcoming event card with photo ─────────────────────────────────────────
+function UpcomingCard({ ev }: { ev: Event }) {
+  const { navigateToEvent } = useApp() as any;
+  // Use cover_photo_url from event data — no extra API call needed
+  const photo = (ev as any).cover_photo_url || null;
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const daysLeft = differenceInDays(parseISO(ev.event_date), parseISO(today));
+  const coverImg = photo || EVENT_COVERS[ev.event_name] || EVENT_COVERS['Custom Event'];
+
+  const daysColor = daysLeft === 0 ? 'bg-blue-600'
+    : daysLeft <= 2 ? 'bg-red-500'
+    : daysLeft <= 7 ? 'bg-orange-500'
+    : 'bg-green-500';
+
+  return (
+    <Card
+      className="overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer"
+      onClick={() => navigateToEvent(ev.id || (ev as any)._id)}
+    >
+      {/* Photo */}
+      <div className="relative h-32 bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+        <img
+          src={coverImg}
+          alt={ev.event_name}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+
+        {/* Days left badge */}
+        <div className={`absolute top-2 left-2 ${daysColor} text-white text-[10px] font-bold px-2 py-1 rounded-full`}>
+          {daysLeft === 0 ? 'TODAY' : daysLeft === 1 ? 'TOMORROW' : `${daysLeft}d left`}
+        </div>
+
+        {/* Status badge */}
+        <span className={`absolute top-2 right-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(ev.event_status)}`}>
+          {ev.event_status}
+        </span>
+
+        {/* Photo indicator */}
+        {photo && (
+          <div className="absolute bottom-8 left-2">            <span className="flex items-center gap-1 bg-black/40 text-white text-[9px] px-1.5 py-0.5 rounded-full">
+              <Camera className="w-2.5 h-2.5" />Photo
+            </span>
+          </div>
+        )}
+
+        {/* Event name */}
+        <div className="absolute bottom-0 left-0 right-0 px-3 py-2">
+          <p className="font-bold text-white text-xs truncate">{ev.event_name}</p>
+          <p className="text-white/75 text-[10px] truncate">{ev.client?.name}</p>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="p-3 flex flex-col flex-1">
+        {/* Date + time pills */}
+        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+          <div className="inline-flex items-center gap-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full px-2 py-0.5 text-[10px] font-semibold">
+            <Calendar className="w-2.5 h-2.5" />{formatDate(ev.event_date)}
+          </div>
+          <div className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-2 py-0.5 text-[10px] font-semibold">
+            <Clock className="w-2.5 h-2.5" />{formatTime(ev.event_time)}
+          </div>
+        </div>
+
+        <div className="space-y-1 mb-2 flex-1">
+          <div className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <MapPin className="w-3 h-3 flex-shrink-0" /><span className="truncate">{ev.event_venue}</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <Phone className="w-3 h-3" />{ev.client?.mobile}
+            </span>
+            <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(ev.total_price)}</span>
+          </div>
+        </div>
+
+        {ev.remaining_balance > 0 && (
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-lg px-2 py-1 mb-2">
+            <p className="text-[10px] text-red-600 dark:text-red-400 font-medium">Due: {formatCurrency(ev.remaining_balance)}</p>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-1.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+          <a href={waLink(ev.client?.mobile || '', `Hi ${ev.client?.name}, your ${ev.event_name} is on ${formatDate(ev.event_date)} at ${formatTime(ev.event_time)}. - MK Brothers`)}
+            target="_blank" rel="noreferrer"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-green-500 text-white rounded-lg text-[10px] font-medium hover:bg-green-600 transition-colors">
+            <MessageCircle className="w-3 h-3" />WhatsApp
+          </a>
+          {ev.client?.google_map_link && (
+            <a href={ev.client.google_map_link} target="_blank" rel="noreferrer"
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-500 text-white rounded-lg text-[10px] font-medium hover:bg-blue-600 transition-colors">
+              <MapPin className="w-3 h-3" />Map
+            </a>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function StatCard({ title, value, sub, icon: Icon, color }: {
   title: string; value: string | number; sub?: string; icon: React.ElementType; color: string;
@@ -92,7 +207,10 @@ export function Dashboard() {
   const today = format(new Date(), 'yyyy-MM-dd');
 
   const todayEvts = events.filter(e => e.event_date === today);
-  const upcoming = events.filter(e => e.event_status === 'Upcoming' && e.event_date > today);
+  // Sort upcoming by nearest date first
+  const upcoming = events
+    .filter(e => e.event_status !== 'Cancelled' && e.event_date >= today)
+    .sort((a, b) => a.event_date.localeCompare(b.event_date));
   const completed = events.filter(e => e.event_status === 'Completed');
   const totalRev = payments.reduce((s, p) => s + p.amount, 0);
   const totalPending = events.reduce((s, e) => s + e.remaining_balance, 0);
@@ -100,8 +218,8 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
-      {/* Stats — 2 cols on mobile, 3 on sm, 6 on lg */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard title="Today" value={todayEvts.length} sub={format(new Date(), 'dd MMM')} icon={Clock}
           color="bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400" />
         <StatCard title="Upcoming" value={upcoming.length} sub="Scheduled" icon={Sparkles}
@@ -111,105 +229,95 @@ export function Dashboard() {
       </div>
 
       {/* Revenue Banner */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-4 sm:p-6 text-white">
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-4 sm:p-5 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-purple-200 text-xs sm:text-sm font-medium">Total Revenue Collected</p>
-            <p className="text-2xl sm:text-4xl font-bold mt-1">{formatCurrency(totalRev)}</p>
-            <p className="text-purple-200 text-xs sm:text-sm mt-1">Pending: {formatCurrency(totalPending)}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-purple-200 text-xs sm:text-sm">Total Events</p>
-            <p className="text-2xl sm:text-3xl font-bold">{events.length}</p>
-            <button onClick={() => setActivePage('reports')}
-              className="text-purple-200 text-xs hover:text-white flex items-center gap-1 justify-end mt-1">
-              Reports <ArrowRight className="w-3 h-3" />
-            </button>
+            <p className="text-purple-200 text-xs">Total Revenue</p>
+            <p className="text-2xl sm:text-3xl font-bold">{formatCurrency(totalRev)}</p>
+            <p className="text-purple-200 text-xs mt-0.5">Pending: {formatCurrency(totalPending)}</p>
           </div>
         </div>
       </div>
 
-      {/* Main grid — single col on mobile, 3 col on lg */}
+      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left: Today + Upcoming */}
         <div className="lg:col-span-2 space-y-4">
+
+          {/* Today's Events */}
+          {todayEvts.length > 0 && (
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full inline-block" />Today's Events
+                </h2>
+                <button onClick={() => setActivePage('events')}
+                  className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1">
+                  View All <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              {todayEvts.map(ev => (
+                <Card key={ev.id} className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{ev.event_name}</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{ev.client?.name}</p>
+                    </div>
+                    <div className="flex flex-col gap-1 items-end ml-2 flex-shrink-0">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(ev.event_status)}`}>{ev.event_status}</span>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${payColor(ev.payment_status)}`}>{ev.payment_status}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 mb-3">
+                    <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 flex-shrink-0" />{formatTime(ev.event_time)}</div>
+                    <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 flex-shrink-0" />{ev.client?.mobile}</div>
+                    <div className="flex items-center gap-1.5 col-span-2"><MapPin className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{ev.event_venue}</span></div>
+                    {ev.remaining_balance > 0 && (
+                      <div className="flex items-center gap-1.5 col-span-2 text-red-600 dark:text-red-400 font-semibold">
+                        <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />{formatCurrency(ev.remaining_balance)} due
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <a href={waLink(ev.client?.mobile || '', `Hi ${ev.client?.name}, your ${ev.event_name} is today at ${formatTime(ev.event_time)}. - MK Brothers`)}
+                      target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex-1 justify-center">
+                      <MessageCircle className="w-3.5 h-3.5" />WhatsApp
+                    </a>
+                    {ev.client?.google_map_link && (
+                      <a href={ev.client.google_map_link} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 flex-1 justify-center">
+                        <MapPin className="w-3.5 h-3.5" />Map
+                      </a>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </>
+          )}
+
+          {/* Upcoming Events — sorted by nearest date with photos */}
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white">Today's Events</h2>
+            <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <span className="w-2 h-2 bg-yellow-500 rounded-full inline-block" />Upcoming Events
+            </h2>
             <button onClick={() => setActivePage('events')}
               className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1">
               View All <ArrowRight className="w-3 h-3" />
             </button>
           </div>
 
-          {todayEvts.length === 0 ? (
+          {upcoming.length === 0 ? (
             <Card className="p-8 text-center">
               <Calendar className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">No events today</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">No upcoming events</p>
             </Card>
-          ) : todayEvts.map(ev => (
-            <Card key={ev.id} className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{ev.event_name}</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{ev.client?.name}</p>
-                </div>
-                <div className="flex flex-col gap-1 items-end ml-2 flex-shrink-0">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(ev.event_status)}`}>{ev.event_status}</span>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${payColor(ev.payment_status)}`}>{ev.payment_status}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 mb-3">
-                <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 flex-shrink-0" />{formatTime(ev.event_time)}</div>
-                <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 flex-shrink-0" />{ev.client?.mobile}</div>
-                <div className="flex items-center gap-1.5 col-span-2"><MapPin className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{ev.event_venue}</span></div>
-                {ev.remaining_balance > 0 && (
-                  <div className="flex items-center gap-1.5 col-span-2 text-red-600 dark:text-red-400 font-semibold">
-                    <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />{formatCurrency(ev.remaining_balance)} due
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
-                <a href={waLink(ev.client?.mobile || '', `Hi ${ev.client?.name}, your ${ev.event_name} is today at ${formatTime(ev.event_time)}. - MK Brothers`)}
-                  target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex-1 justify-center">
-                  <MessageCircle className="w-3.5 h-3.5" />WhatsApp
-                </a>
-                {ev.client?.google_map_link && (
-                  <a href={ev.client.google_map_link} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 flex-1 justify-center">
-                    <MapPin className="w-3.5 h-3.5" />Map
-                  </a>
-                )}
-              </div>
-            </Card>
-          ))}
-
-          {/* Upcoming */}
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white">Upcoming Events</h2>
-          </div>
-          <Card>
-            {upcoming.slice(0, 5).map((ev, i) => (
-              <div key={ev.id} className={`flex items-center justify-between p-3 sm:p-4 ${i > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{ev.event_name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{ev.client?.name} · {formatDate(ev.event_date)}</p>
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0 ml-2">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${payColor(ev.payment_status)}`}>{ev.payment_status}</span>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatCurrency(ev.total_price)}</p>
-                </div>
-              </div>
-            ))}
-            {upcoming.length === 0 && (
-              <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">No upcoming events</div>
-            )}
-          </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {upcoming.slice(0, 6).map(ev => (
+                <UpcomingCard key={ev.id} ev={ev} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right column */}
@@ -238,25 +346,6 @@ export function Dashboard() {
                   ))}
                 </div>
             }
-          </Card>
-
-          {/* Quick Actions */}
-          <Card className="p-4">
-            <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-3">Quick Actions</h3>
-            <div className="space-y-2">
-              <button onClick={() => setActivePage('events')}
-                className="w-full flex items-center gap-2 px-3 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors">
-                <Sparkles className="w-4 h-4" />Create New Event
-              </button>
-              <button onClick={() => setActivePage('payments')}
-                className="w-full flex items-center gap-2 px-3 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <CreditCard className="w-4 h-4" />Record Payment
-              </button>
-              <button onClick={() => setActivePage('inventory')}
-                className="w-full flex items-center gap-2 px-3 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <Package className="w-4 h-4" />Manage Inventory
-              </button>
-            </div>
           </Card>
         </div>
       </div>

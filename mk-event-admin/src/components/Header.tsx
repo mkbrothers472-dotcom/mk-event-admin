@@ -1,6 +1,7 @@
-import { Bell, Moon, Sun, User, Menu } from 'lucide-react';
+import { Bell, Moon, Sun, User, Menu, LogOut } from 'lucide-react';
 import { useApp } from '../store';
 import { DBConnectedBadge } from './DBStatus';
+import { clearAuthCookie } from '../pages/Login';
 
 const titles: Record<string, string> = {
   dashboard: 'Dashboard', events: 'Events', calendar: 'Calendar',
@@ -56,6 +57,7 @@ export function Header() {
         <button
           onClick={toggleDarkMode}
           className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {darkMode
             ? <Sun className="w-5 h-5 text-yellow-400" />
@@ -63,15 +65,22 @@ export function Header() {
           }
         </button>
 
-        {/* Avatar */}
+        {/* Avatar + Logout */}
         <div className="flex items-center gap-2 pl-2 ml-0.5 border-l border-gray-200 dark:border-gray-700">
           <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
             <User className="w-4 h-4 text-white" />
           </div>
           <div className="hidden md:block">
             <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">Admin</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 leading-tight">MK Brothers</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-tight">monilkumbhani@gmail.com</p>
           </div>
+          <button
+            onClick={() => { clearAuthCookie(); window.location.reload(); }}
+            className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors ml-1"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>

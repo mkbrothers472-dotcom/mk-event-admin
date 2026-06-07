@@ -35,13 +35,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatsCard
-          title="Events This Month"
-          value={thisMonthEvents.length}
-          icon={Calendar}
-          color="purple"
-          subtitle="Total bookings"
-        />
+       
         <StatsCard
           title="Today's Events"
           value={todaysEvents.length}
@@ -56,20 +50,7 @@ export default function DashboardPage() {
           color="yellow"
           subtitle="Scheduled events"
         />
-        <StatsCard
-          title="Pending Payments"
-          value={pendingPayments.length}
-          icon={CreditCard}
-          color="red"
-          subtitle={formatCurrency(pendingAmount)}
-        />
-        <StatsCard
-          title="Completed"
-          value={completedEvents.length}
-          icon={CheckCircle}
-          color="green"
-          subtitle="This month"
-        />
+       
         <StatsCard
           title="Pickup Pending"
           value={pickupPending.length}
@@ -79,23 +60,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Revenue Banner */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-purple-200 text-sm font-medium">Total Revenue Collected</p>
-            <p className="text-4xl font-bold mt-1">{formatCurrency(totalRevenue)}</p>
-            <p className="text-purple-200 text-sm mt-1">Pending: {formatCurrency(pendingAmount)}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-purple-200 text-sm">Total Events</p>
-            <p className="text-3xl font-bold">{events.length}</p>
-            <Link href="/reports" className="text-purple-200 text-sm hover:text-white flex items-center gap-1 justify-end mt-1">
-              View Reports <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Today's Events */}
@@ -231,31 +195,7 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
-            <div className="space-y-2">
-              <Link href="/events?new=true">
-                <Button className="w-full justify-start gap-2 mb-2">
-                  <Sparkles className="w-4 h-4" />
-                  Create New Event
-                </Button>
-              </Link>
-              <Link href="/payments">
-                <Button variant="outline" className="w-full justify-start gap-2 mb-2">
-                  <CreditCard className="w-4 h-4" />
-                  Record Payment
-                </Button>
-              </Link>
-              <Link href="/inventory">
-                <Button variant="outline" className="w-full justify-start gap-2">
-                  <Package className="w-4 h-4" />
-                  Manage Inventory
-                </Button>
-              </Link>
-            </div>
-          </div>
+   
         </div>
       </div>
     </div>
